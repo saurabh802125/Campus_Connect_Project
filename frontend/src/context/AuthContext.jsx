@@ -6,7 +6,10 @@ const AuthContext = createContext();
 const authReducer = (state, action) => {
   switch (action.type) {
     case 'LOGIN_SUCCESS':
-      localStorage.setItem('token', action.payload.token);
+      // Validate token before storing
+      if (action.payload.token) {
+        localStorage.setItem('token', action.payload.token);
+      }
       return {
         ...state,
         user: action.payload,
@@ -29,6 +32,8 @@ const authReducer = (state, action) => {
       return { ...state, error: action.payload, loading: false };
     case 'UPDATE_USER':
       return { ...state, user: { ...state.user, ...action.payload } };
+    case 'CLEAR_ERROR':
+      return { ...state, error: null };
     default:
       return state;
   }
@@ -44,9 +49,13 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
+    
+    // Check if token exists and is valid format
+    if (token && token !== 'null' && token !== 'undefined' && token.length > 10) {
       checkAuth();
     } else {
+      // Clear any invalid tokens
+      localStorage.removeItem('token');
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, []);
@@ -56,6 +65,8 @@ export const AuthProvider = ({ children }) => {
       const userData = await authAPI.getProfile();
       dispatch({ type: 'LOGIN_SUCCESS', payload: userData });
     } catch (error) {
+      console.error('Auth check failed:', error.message);
+      // Clear corrupted token
       localStorage.removeItem('token');
       dispatch({ type: 'SET_LOADING', payload: false });
     }
@@ -64,11 +75,14 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      dispatch({ type: 'CLEAR_ERROR' });
+      
       const userData = await authAPI.login(credentials);
       dispatch({ type: 'LOGIN_SUCCESS', payload: userData });
       return userData;
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message || 'Login failed' });
+      const errorMessage = error.response?.data?.message || 'Login failed. Please try again.';
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
       throw error;
     }
   };
@@ -76,28 +90,38 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
+      dispatch({ type: 'CLEAR_ERROR' });
+      
       const newUser = await authAPI.register(userData);
       dispatch({ type: 'LOGIN_SUCCESS', payload: newUser });
       return newUser;
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message || 'Registration failed' });
+      const errorMessage = error.response?.data?.message || 'Registration failed. Please try again.';
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
       throw error;
     }
   };
 
   const logout = () => {
+    localStorage.removeItem('token');
     dispatch({ type: 'LOGOUT' });
   };
 
   const updateUserSkills = async (skills) => {
     try {
+      dispatch({ type: 'CLEAR_ERROR' });
       const updatedUser = await authAPI.updateSkills(skills);
       dispatch({ type: 'UPDATE_USER', payload: updatedUser });
       return updatedUser;
     } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message || 'Update failed' });
+      const errorMessage = error.response?.data?.message || 'Failed to update skills';
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
       throw error;
     }
+  };
+
+  const clearError = () => {
+    dispatch({ type: 'CLEAR_ERROR' });
   };
 
   const value = {
@@ -105,7 +129,8 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    updateUserSkills
+    updateUserSkills,
+    clearError
   };
 
   return (
@@ -122,3 +147,5 @@ export const useAuth = () => {
   }
   return context;
 };
+
+export default AuthContext;

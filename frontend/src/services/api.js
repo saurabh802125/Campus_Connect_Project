@@ -7,28 +7,82 @@ const api = axios.create({
 });
 
 // Add auth token to requests
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token && token !== 'null' && token !== 'undefined') {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
   }
-  return config;
-});
+);
+
+// Handle response errors and token cleanup
+api.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    // If token is invalid or expired, clear it and redirect to login
+    if (error.response?.status === 401) {
+      const errorData = error.response.data;
+      
+      // If backend signals to clear token
+      if (errorData?.clearToken) {
+        localStorage.removeItem('token');
+        // Reload page to trigger login screen
+        window.location.reload();
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 // Auth API calls
 export const authAPI = {
   login: async (credentials) => {
-    const response = await api.post('/auth/login', credentials);
-    return response.data;
+    try {
+      const response = await api.post('/auth/login', credentials);
+      
+      // Validate token before storing
+      if (response.data?.token) {
+        localStorage.setItem('token', response.data.token);
+      }
+      
+      return response.data;
+    } catch (error) {
+      // Clear any existing corrupted token
+      localStorage.removeItem('token');
+      throw error;
+    }
   },
+  
   register: async (userData) => {
-    const response = await api.post('/auth/register', userData);
-    return response.data;
+    try {
+      const response = await api.post('/auth/register', userData);
+      
+      // Validate token before storing
+      if (response.data?.token) {
+        localStorage.setItem('token', response.data.token);
+      }
+      
+      return response.data;
+    } catch (error) {
+      // Clear any existing corrupted token
+      localStorage.removeItem('token');
+      throw error;
+    }
   },
+  
   getProfile: async () => {
     const response = await api.get('/auth/profile');
     return response.data;
   },
+  
   updateSkills: async (skills) => {
     const response = await api.put('/auth/skills', { skills });
     return response.data;
@@ -70,7 +124,7 @@ export const eventAPI = {
 // Skill API calls
 export const skillAPI = {
   searchUsers: async (skill) => {
-    const response = await api.get(`/skills/search?skill=${skill}`);
+    const response = await api.get(`/skills/search?skill=${encodeURIComponent(skill)}`);
     return response.data;
   },
   getAllUsers: async () => {
