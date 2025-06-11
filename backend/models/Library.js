@@ -33,6 +33,22 @@ const librarySchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  // Enhanced layout configuration for PVR-style display
+  layout: {
+    rows: {
+      type: Number,
+      default: 8
+    },
+    seatsPerRow: {
+      type: Number,
+      default: 15
+    }
+  },
+  // Library features and amenities
+  features: [{
+    type: String,
+    enum: ['Wi-Fi', 'Silent Zone', 'AC', 'Study Pods', 'Group Study', 'Printing', 'Research Area', 'Computers', 'Whiteboard', 'Projector']
+  }],
   seats: [seatSchema]
 }, {
   timestamps: true
